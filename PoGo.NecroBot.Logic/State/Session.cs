@@ -16,6 +16,7 @@ using PoGo.NecroBot.Logic.Model;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Runtime.Caching;
+using PoGo.NecroBot.Logic.Logging;
 
 #endregion
 
@@ -55,6 +56,7 @@ namespace PoGo.NecroBot.Logic.State
     {
         public Session(ISettings settings, ILogicSettings logicSettings, IElevationService elevationService) : this(settings, logicSettings, elevationService, Common.Translation.Load(logicSettings))
         {
+            LoggedTime = DateTime.Now;
         }
         public DateTime LoggedTime { get; set; }
         private List<AuthConfig> accounts;
@@ -136,14 +138,18 @@ namespace PoGo.NecroBot.Logic.State
             Navigation.WalkStrategy.UpdatePositionEvent +=
                 (lat, lng) => this.EventDispatcher.Send(new UpdatePositionEvent { Latitude = lat, Longitude = lng });
         }
-
+        //TODO : Need add BotManager to manage all feature related to multibot, 
         public void ResetSessionToWithNextBot(AuthConfig bot = null, double lat = 0, double lng = 0, double att = 0)
         {
             this.CatchBlockTime = DateTime.Now; //remove any block
             
             var currentAccount = this.accounts.FirstOrDefault(x => (x.AuthType == PokemonGo.RocketAPI.Enums.AuthType.Ptc && x.PtcUsername == this.Settings.PtcUsername) ||
                                         (x.AuthType == PokemonGo.RocketAPI.Enums.AuthType.Google && x.GoogleUsername == this.Settings.GoogleUsername));
-            currentAccount.RuntimeTotal += (DateTime.Now - LoggedTime).TotalMinutes;
+            if (LoggedTime != DateTime.MinValue)
+            {
+                currentAccount.RuntimeTotal += (DateTime.Now - LoggedTime).TotalMinutes;
+            }
+
             this.accounts = this.accounts.OrderByDescending(p => p.RuntimeTotal).ToList();
 
             var nextBot = bot != null ? bot : this.accounts.LastOrDefault(p => p != currentAccount && p.ReleaseBlockTime < DateTime.Now);
@@ -161,8 +167,17 @@ namespace PoGo.NecroBot.Logic.State
                 this.Reset(this.Settings, this.LogicSettings);
                 CancellationTokenSource.Cancel();
                 this.CancellationTokenSource = new CancellationTokenSource();
+                
+                this.EventDispatcher.Send(new BotSwitchedEvent() {
+                });
 
-                this.EventDispatcher.Send(new BotSwitchedEvent() { });
+                if(this.LogicSettings.MultipleBotConfig.DisplayList)
+                {
+                    foreach (var item in this.accounts)
+                    {
+                        Logger.Write($"{item.PtcUsername}{item.GoogleUsername} \tRuntime : {item.RuntimeTotal:0.00} min ");
+                    }
+                }
             }
 
         }
