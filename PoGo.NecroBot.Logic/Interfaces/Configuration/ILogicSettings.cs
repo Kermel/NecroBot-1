@@ -10,6 +10,7 @@ using System.Threading;
 
 namespace PoGo.NecroBot.Logic.Interfaces.Configuration
 {
+
     public interface ILogicSettings
     {
         bool UseWebsocket { get; }
@@ -38,12 +39,15 @@ namespace PoGo.NecroBot.Logic.Interfaces.Configuration
         bool ShowVariantWalking { get; }
         bool RandomlyPauseAtStops { get; }
         bool FastSoftBanBypass { get; }
+        int ByPassSpinCount { get; }
+
         bool EvolveAllPokemonWithEnoughCandy { get; }
         bool KeepPokemonsThatCanEvolve { get; }
 
         bool UseTransferFilterToCatch { get; }
         bool TransferDuplicatePokemon { get; }
         bool TransferDuplicatePokemonOnCapture { get; }
+        bool UseBulkTransferPokemon { get; }
         bool UseEggIncubators { get; }
         bool UseLimitedEggIncubators { get; }
         int UseGreatBallAboveCp { get; }
@@ -83,7 +87,7 @@ namespace PoGo.NecroBot.Logic.Interfaces.Configuration
         bool UseLuckyEggConstantly { get; }
         int MaxBerriesToUsePerPokemon { get; }
         bool UseIncenseConstantly { get; }
-        int UseBerriesMinCp { get; }
+        float UseBerriesMinCp { get; }
         float UseBerriesMinIv { get; }
         double UseBerriesBelowCatchProbability { get; }
         string UseBerriesOperator { get; }
@@ -139,6 +143,7 @@ namespace PoGo.NecroBot.Logic.Interfaces.Configuration
         bool VerboseRecycling { get; }
         double RecycleInventoryAtUsagePercentage { get; }
         double EvolveKeptPokemonsAtStorageUsagePercentage { get; }
+        int EvolveKeptPokemonIfBagHasOverThisManyPokemon { get; }
         bool UseSnipeLimit { get; }
         bool UsePokeStopLimit { get; }
         bool UseCatchLimit { get; }
@@ -148,6 +153,7 @@ namespace PoGo.NecroBot.Logic.Interfaces.Configuration
         ICollection<PokemonId> PokemonsToEvolve { get; }
         ICollection<PokemonId> PokemonsToLevelUp { get; }
 
+        NotificationConfig NotificationConfig { get; }
         ICollection<PokemonId> PokemonsNotToTransfer { get; }
 
         ICollection<PokemonId> PokemonsNotToCatch { get; }
@@ -233,6 +239,10 @@ namespace PoGo.NecroBot.Logic.Interfaces.Configuration
         int GymCollectRewardAfter { get; }
         List<AuthConfig> Bots { get; }
         bool AllowMultipleBot { get; }
-        
+        CaptchaConfig CaptchaConfig { get;  }
+        int BulkTransferStogareBuffer { get;  }
+        int BulkTransferSize { get; }
+
+        bool AutosnipeVerifiedOnly { get;  }
     }
 }

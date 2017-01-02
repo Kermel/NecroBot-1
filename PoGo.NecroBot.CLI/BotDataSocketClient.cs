@@ -22,20 +22,20 @@ namespace PoGo.NecroBot.CLI
     {
         private static List<EncounteredEvent> events = new List<EncounteredEvent>();
         private const int POLLING_INTERVAL = 5000;
-        public static void Listen(IEvent evt, Session session)
+        public static void Listen(IEvent evt, ISession session)
         {
             dynamic eve = evt;
 
             try
             {
-                HandleEvent(eve);
+                HandleEvent(eve,  session);
             }
             catch
             {
             }
         }
 
-        private static void HandleEvent(EncounteredEvent eve)
+        private static void HandleEvent(EncounteredEvent eve, ISession session)
         {
             lock (events)
             {
@@ -101,6 +101,7 @@ namespace PoGo.NecroBot.CLI
                     onSocketMessageRecieved(session, sender, e);
                 };
 
+                ws.Connect();
                 while (true)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -179,12 +180,13 @@ namespace PoGo.NecroBot.CLI
             {
                 OnSnipePokemon(session, e.Data);
                 OnPokemonData(session, e.Data);
-                ONFPMBridgeData(session, e.Data);
+                //ONFPMBridgeData(session, e.Data); //Nolonger use
             }
+
             catch (Exception ex)
             {
 #if DEBUG
-                Logger.Write("ERROR TO ADD SNIPE< DEBUG ONLY " + ex.Message, LogLevel.Info, ConsoleColor.Yellow);
+                Logger.Write("ERROR TO ADD SNIPE< DEBUG ONLY " + ex.Message + "\r\n " + ex.StackTrace, LogLevel.Info, ConsoleColor.Yellow);
 #endif
             }
 
@@ -200,6 +202,15 @@ namespace PoGo.NecroBot.CLI
             }
         }
 
+        public static bool CheckIfPokemonBeenCaught(double lat, double lng, PokemonId id , ulong encounterId, ISession session)
+        {
+            string uniqueCacheKey = $"{session.Settings.PtcUsername}{session.Settings.GoogleUsername}{Math.Round(lat, 6)}{id}{Math.Round(lng, 6)}";
+            if (session.Cache.Get(uniqueCacheKey) != null) return true;
+            if (encounterId > 0 && session.Cache[encounterId.ToString()] !=null) return true;
+
+            return false;
+
+        }
         private static void OnPokemonData(ISession session, string message)
         {
             var match = Regex.Match(message, "42\\[\"pokemon\",(.*)]");
@@ -210,21 +221,29 @@ namespace PoGo.NecroBot.CLI
                 session.EventDispatcher.Send(data);
                 if (session.LogicSettings.AllowAutoSnipe)
                 {
-                    var move1 = PokemonMove.Absorb;
-                    var move2 = PokemonMove.Absorb;
+                    var move1 = PokemonMove.MoveUnset;
+                    var move2 = PokemonMove.MoveUnset;
                     Enum.TryParse<PokemonMove>(data.Move1, true, out move1);
                     Enum.TryParse<PokemonMove>(data.Move1, true, out move2);
-                    MSniperServiceTask.AddSnipeItem(session, new MSniperServiceTask.MSniperInfo2()
+                    ulong encounterid = 0;
+                    ulong.TryParse(data.EncounterId, out encounterid);
+                    bool caught = CheckIfPokemonBeenCaught(data.Latitude, data.Longitude, data.PokemonId, encounterid, session);
+                    if (!caught)
                     {
-                        Latitude = data.Latitude,
-                        Longitude = data.Longitude,
-                        EncounterId = Convert.ToUInt64(data.EncounterId),
-                        SpawnPointId = data.SpawnPointId,
-                        PokemonId = (short)data.PokemonId,
-                        Iv = data.IV,
-                        Move1 = move1,
-                        Move2 = move2
-                    });
+                        MSniperServiceTask.AddSnipeItem(session, new MSniperServiceTask.MSniperInfo2()
+                        {
+                            Latitude = data.Latitude,
+                            Longitude = data.Longitude,
+                            EncounterId = encounterid,
+                            SpawnPointId = data.SpawnPointId,
+                            PokemonId = (short)data.PokemonId,
+                            Iv = data.IV,
+                            Move1 = move1,
+                            Move2 = move2       ,
+                            ExpiredTime =data.ExpireTimestamp
+                        }).Wait();
+                    }
+                
                 }
             }
         }
@@ -244,17 +263,28 @@ namespace PoGo.NecroBot.CLI
                 var move2 = PokemonMove.Absorb;
                 Enum.TryParse<PokemonMove>(data.Move1, true, out move1);
                 Enum.TryParse<PokemonMove>(data.Move1, true, out move2);
+                ulong encounterid = 0;
+                ulong.TryParse(data.EncounterId, out encounterid);
+
+                bool caught = CheckIfPokemonBeenCaught(data.Latitude, data.Longitude, data.PokemonId, encounterid, session);
+                if(caught)
+                {
+                    Logger.Write("[SNIPE IGNORED] - Your snipe pokemon has already been cautgh by bot", LogLevel.Sniper);
+                    return;
+                }
+
                 MSniperServiceTask.AddSnipeItem(session, new MSniperServiceTask.MSniperInfo2()
                 {
                     Latitude = data.Latitude,
                     Longitude = data.Longitude,
-                    EncounterId = Convert.ToUInt64(data.EncounterId),
+                    EncounterId = encounterid,
                     SpawnPointId = data.SpawnPointId,
                     PokemonId = (short)data.PokemonId,
                     Iv = data.IV,
                     Move1 = move1,
+                    ExpiredTime = data.ExpireTimestamp        ,
                     Move2 = move2
-                }, true);
+                }, true).Wait();
             }
         }
 
